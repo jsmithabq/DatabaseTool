@@ -1,0 +1,124 @@
+<!--
+  $Id: build.xml $
+-->
+
+<project name="dbt" basedir="." default="compile">
+  <property environment="env"/>
+  <property file="${basedir}/build.properties"/>
+  <property name="target" value="build"/>
+  <property name="src.dir" value="src"/>
+  <property name="test.dir" value="${src.dir}/test"/>
+  <property name="build.dir" value="build"/>
+  <property name="docs.dir" value="${build.dir}/docs"/>
+  <property name="dist.dir" value="dist"/>
+  <condition property="tech.base" value="${unix.base}">
+    <os family="unix"/>
+  </condition>
+  <condition property="tech.base" value="${windows.base}">
+    <os family="windows"/>
+  </condition>
+
+  <path id="lib.classpath">
+    <fileset dir="${tech.base}/lib-core">
+      <include name="*.jar"/>
+    </fileset>
+  </path>
+
+  <path id="client.classpath">
+    <pathelement location="${build.dir}/classes"/>
+    <pathelement path="${basedir}/resources/META-INF"/>
+  </path>
+
+  <target name="clean.build">
+    <delete dir="${build.dir}" failonerror="false"/>
+  </target>
+
+  <target name="clean.dist">
+    <delete dir="${dist.dir}" failonerror="false"/>
+  </target>
+
+  <target name="clean.all" depends="clean.build,clean.dist">
+    <delete dir="${docs.dir}" failonerror="false"/>
+  </target>
+
+  <target name="init">
+    <echo message="OS name is '${os.name}'"/>
+    <mkdir dir="${build.dir}"/>
+    <mkdir dir="${build.dir}/classes"/>
+    <mkdir dir="${docs.dir}"/>
+    <mkdir dir="${dist.dir}"/>
+  </target>
+
+  <target name="compile" depends="init">
+    <javac srcdir="${basedir}/src" destdir="${build.dir}/classes">
+      <classpath refid="client.classpath"/>
+      <classpath refid="lib.classpath"/>
+    </javac>
+    <copy toDir="${build.dir}/src/jdbc/" overwrite="yes">
+      <fileset dir="${basedir}/src/jdbc">
+        <include name="/*.java"/>
+      </fileset>
+    </copy>
+  </target>
+
+  <target name="javadoc" depends="compile">
+    <delete dir="${docs.dir}/api" failonerror="false"/>
+    <javadoc
+      destdir="${docs.dir}/api"
+      author="true"
+      version="true"
+      use="true"
+      windowtitle="DatabaseTool"
+    >
+      <packageset dir="${src.dir}" defaultexcludes="yes">
+        <include name="jdbc/**"/>
+        <exclude name="test/**"/>
+        <exclude name="**/Test*"/>
+      </packageset>
+      <classpath refid="client.classpath"/>
+      <classpath refid="lib.classpath"/>
+    </javadoc>
+  </target>
+
+  <target name="run.clock" depends="compile">
+    <java fork="true" classname="jdbc.JDatabaseTool">
+      <classpath refid="client.classpath"/>
+      <classpath refid="lib.classpath"/>
+    </java>
+  </target>
+
+  <target name="dist" depends="clean.dist,javadoc">
+    <mkdir dir="${dist.dir}/docs"/>
+    <mkdir dir="${dist.dir}/lib"/>
+    <copy toDir="${dist.dir}">
+      <fileset dir="${build.dir}"/>
+    </copy>
+    <copy toDir="${dist.dir}/docs/api">
+      <fileset dir="${docs.dir}/api"/>
+    </copy>
+  </target>
+
+  <target name="test" depends="jar.it">
+<!--
+    <copy toDir="${test.dir}">
+      <fileset dir="${build.dir}/classes"/>
+    </copy>
+-->
+    <copy toDir="${test.dir}">
+      <fileset dir="${dist.dir}/lib">
+        <include name="*.jar"/>
+      </fileset>
+    </copy>
+  </target>
+
+  <target name="jar.it" depends="dist">
+    <jar destfile="${dist.dir}/lib/DatabaseTool.jar"
+        basedir="${dist.dir}/classes"
+        excludes="**/Test*.class">
+      <manifest>
+        <attribute name="Main-Class" value="time.Clock"/>
+        <attribute name="Built-By" value="${user.name}"/>
+      </manifest>
+    </jar>
+  </target>
+</project>
