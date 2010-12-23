@@ -35,10 +35,10 @@ public class JDatabaseTool extends JFrame implements ActionListener {
   private static final int URL_WIDTH = 25;
   private static final int USER_WIDTH = 15;
   private static final int PW_WIDTH = 15;
-  private static final int MESSAGE_WIDTH = 70;
+  private static final int MESSAGE_WIDTH = 75;
   private static final int SQL_WIDTH = 80;
   private static final int RESULT_WIDTH = 80;
-  private static final int STARTS_WITH_LEN = 40;
+  private static final int STARTS_WITH_LEN = 80;
   private static final String LINEFEED = "\n";
   private static final String DOUBLE_LINEFEED = "\n\n";
   private static final String NULL_SYMBOL = "(null)";
@@ -49,7 +49,7 @@ public class JDatabaseTool extends JFrame implements ActionListener {
   private JButton connect, previous, next, submit, clear;
   private JTextField urlField, driverField;
   private JTextField userField, passwordField;
-  private JCheckBox debugBox;
+  private JCheckBox debugBox, soBox;
   private JTextArea sqlArea;
   private JScrollPane sqlPane;
   private JTextArea resultArea;
@@ -65,7 +65,8 @@ public class JDatabaseTool extends JFrame implements ActionListener {
   private static String defaultUser = "";
   private static String defaultPassword = "";
   private static String defaultDebug = "";
-  private boolean debug;
+  private static String defaultStandardOutput = "";
+  private boolean debug, standardOutput;
 
   {
     appName = this.getClass().getName();
@@ -84,7 +85,7 @@ public class JDatabaseTool extends JFrame implements ActionListener {
       String data, String driver) {
     super(title);
     Container content = getContentPane();
-    submissions = new Vector(50);
+    submissions = new Vector<String>(50);
     getDatabaseToolProperties();
     content.setLayout(new BorderLayout(5, 5));
     JInsetsPanel outerPanel = new JInsetsPanel();
@@ -116,10 +117,16 @@ public class JDatabaseTool extends JFrame implements ActionListener {
     connect.addActionListener(this);
     urlPanel.add(connect);
 
-    securityPanel.add(debugBox = new JCheckBox("Debug:", debug));
+    securityPanel.add(debugBox = new JCheckBox("Debug  ", debug));
     debugBox.addItemListener(new ItemListener() {
       public void itemStateChanged(ItemEvent ie) {
         debug = debugBox.isSelected();
+      }
+    });
+    securityPanel.add(soBox = new JCheckBox("Standard Output    ", standardOutput));
+    soBox.addItemListener(new ItemListener() {
+      public void itemStateChanged(ItemEvent ie) {
+        standardOutput = soBox.isSelected();
       }
     });
     securityPanel.add(new JLabel("User:"));
@@ -283,8 +290,9 @@ public class JDatabaseTool extends JFrame implements ActionListener {
   }
 
   private void useDefaultProperties() {
-    if (!getDatabaseToolProperties())
+    if (!getDatabaseToolProperties()) {
       return;
+    }
     driverField.setText(defaultDriver);
     urlField.setText(defaultURL);
     userField.setText(defaultUser);
@@ -309,6 +317,8 @@ public class JDatabaseTool extends JFrame implements ActionListener {
       defaultPassword = p.getProperty("databasetool.password", "");
       defaultDebug = p.getProperty("databasetool.debug", "false");
       debug = defaultDebug.equalsIgnoreCase("true");
+      defaultStandardOutput = p.getProperty("databasetool.standardoutput", "false");
+      standardOutput = defaultStandardOutput.equalsIgnoreCase("true");
       if (debug) {
         System.out.println(appName + ": " + 
           "using properties from file '" +
@@ -355,8 +365,9 @@ public class JDatabaseTool extends JFrame implements ActionListener {
 
   private void closeDB() {
     try {
-      if (con != null)
+      if (con != null) {
         con.close();
+      }
     }
     catch (Exception e) {
       System.out.println(
@@ -367,27 +378,31 @@ public class JDatabaseTool extends JFrame implements ActionListener {
 
   private void closeStatement() {
     try {
-      if (stmt != null)
+      if (stmt != null) {
         stmt.close();
+      }
     }
     catch (Exception e) {
       System.out.println("Error closing the current statement.");
     }
   }
 
-  private void displayResultSet(ResultSet rs) {
+  private int displayResultSet(ResultSet rs) {
     String result = "";
+    int count = 0;
     try {
       ResultSetMetaData rsmd = rs.getMetaData();
       int cols = rsmd.getColumnCount();
       for (int i = 1; i <= cols; i++) {
-        if (i > 1)
+        if (i > 1) {
           result += ", ";
+        }
         result += rsmd.getColumnLabel(i);
       }
       result += DOUBLE_LINEFEED;
       boolean emptyResultSet = true;
       while (rs.next()) {
+        count++;
         emptyResultSet = false;
         for (int i = 1; i <= cols; i++) {
           if (i > 1) {
@@ -422,6 +437,60 @@ public class JDatabaseTool extends JFrame implements ActionListener {
       handleMessage("Error displaying the current statement.");
       debugMessage("Error displaying the current statement: " + e);
     }
+    return count;
+  }
+
+  private int printResultSet(ResultSet rs) {
+    String result = "Results sent to standard output...";
+    int count = 0;
+    try {
+      ResultSetMetaData rsmd = rs.getMetaData();
+      int cols = rsmd.getColumnCount();
+      for (int i = 1; i <= cols; i++) {
+        if (i > 1) {
+          System.out.print(", ");
+        }
+        System.out.print(rsmd.getColumnLabel(i));
+      }
+      System.out.println(); System.out.println();
+      boolean emptyResultSet = true;
+      while (rs.next()) {
+        count++;
+        emptyResultSet = false;
+        for (int i = 1; i <= cols; i++) {
+          if (i > 1) {
+            System.out.print(", ");
+          }
+          String dataType = rsmd.getColumnTypeName(i);
+          String temp = rs.getString(i);
+          if (temp == null) {
+            temp = NULL_SYMBOL;
+            System.out.print(temp);
+          }
+          else {
+            if (dataType.equalsIgnoreCase("BLOB")) {
+              temp = temp.substring(0, 10) + "....." +
+                temp.substring(temp.length() - 10);
+              System.out.print(temp);
+            }
+            else {
+              System.out.print(rs.getString(i));
+            }
+          }
+        }
+        System.out.println();
+      }
+      if (emptyResultSet) {
+        System.out.println(" -- no rows -- ");
+      }
+      resultArea.setText(result);
+      handleMessage("");
+    }
+    catch (Exception e) {
+      handleMessage("Error displaying the current statement.");
+      debugMessage("Error displaying the current statement: " + e);
+    }
+    return count;
   }
 
   private void executeSQL() {
@@ -450,9 +519,16 @@ public class JDatabaseTool extends JFrame implements ActionListener {
       String cmdStart = cmd.substring(0, startLength);
       if (keyword.equalsIgnoreCase("select")) {
         ResultSet rs = stmt.executeQuery(cmd);
-        displayResultSet(rs);
+        int count = 0;
+        if (!standardOutput) {
+          count = displayResultSet(rs);
+        }
+        else {
+          count = printResultSet(rs);
+        }
         rs.close();
-        handleMessage("Executed query: " + cmdStart + "...");
+        handleMessage("Executed query: " + cmdStart + "..., count = " +
+          count + ".");
       }
       else if (keyword.equalsIgnoreCase("update") ||
           keyword.equalsIgnoreCase("insert") ||
@@ -473,20 +549,20 @@ public class JDatabaseTool extends JFrame implements ActionListener {
   }
 
   private void getPreviousSubmission() {
-    if (submitIndex <= 0)
+    if (submitIndex <= 0) {
       return;
+    }
     submitIndex--;
-    sqlArea.setText(
-      (String) submissions.elementAt(submitIndex));
+    sqlArea.setText((String) submissions.elementAt(submitIndex));
     updateButtons();
   }
 
   private void getNextSubmission() {
-    if (submitIndex >= submissions.size() - 1)
+    if (submitIndex >= submissions.size() - 1) {
       return;
+    }
     submitIndex++;
-    sqlArea.setText(
-      (String) submissions.elementAt(submitIndex));
+    sqlArea.setText((String) submissions.elementAt(submitIndex));
     updateButtons();
   }
 
@@ -505,8 +581,7 @@ public class JDatabaseTool extends JFrame implements ActionListener {
   public void actionPerformed(ActionEvent event) {
     handleMessage("");
     Object source = event.getSource();
-    if (source == connect ||
-        source == driverField || source == urlField ||
+    if (source == connect || source == driverField || source == urlField ||
         source == userField || source == passwordField) {
       connectToDB();
     }
@@ -522,7 +597,7 @@ public class JDatabaseTool extends JFrame implements ActionListener {
     else if (source == clear) {
       sqlArea.setText("");
       resultArea.setText("");
-//      handleMessage("");
+      //handleMessage("");
     }
   }
 

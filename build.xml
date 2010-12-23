@@ -80,7 +80,7 @@
     </javadoc>
   </target>
 
-  <target name="run.clock" depends="compile">
+  <target name="run.databasetool" depends="compile">
     <java fork="true" classname="jdbc.JDatabaseTool">
       <classpath refid="client.classpath"/>
       <classpath refid="lib.classpath"/>
