@@ -1,9 +1,6 @@
-ConvertCoordinates is a simple, single-window application to convert
-coordinates among decimal lat-lon, degree-minute-second lat-lon, and
-UTM.
+DatabaseTool
+============
 
-ConvertCoordinates is based on algorithms from a C app by Peter Daly.
-A copy of the C app and its acknowledgments is located here:
-
-'./misc/convert_datum.c'.
+DatabaseTool is a simple JDBC tool for testing connections to SQL
+databases.
 
