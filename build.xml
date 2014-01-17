@@ -116,7 +116,7 @@
         basedir="${dist.dir}/classes"
         excludes="**/Test*.class">
       <manifest>
-        <attribute name="Main-Class" value="time.Clock"/>
+        <attribute name="Main-Class" value="jdbc.JDatabaseTool"/>
         <attribute name="Built-By" value="${user.name}"/>
       </manifest>
     </jar>
